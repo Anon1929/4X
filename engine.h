@@ -3,8 +3,46 @@
 #include <iostream>
 #include <map>
 #include <vector>
+#include <algorithm>
 
 using namespace std;
+
+class Sprite{
+    private:
+        SDL_Rect position;
+        SDL_Rect slice;
+        SDL_Texture * texture;
+    public:
+    Sprite(int x, int y, int w, int h, int sx, int sy, int sw, int sh, SDL_Texture * txt){
+        position.x = x;
+        position.y = y;
+        position.w = w;
+        position.h = h;
+        slice.x = sx;
+        slice.y = sy;
+        slice.w = sw;
+        slice.h = sh;
+        texture = txt;
+    }
+    void render(SDL_Renderer * renderer){
+        SDL_RenderCopy(renderer, texture, &slice, &position);
+    }
+    int priority(){
+        return position.y;
+    }
+    void setPosition(int x, int y, int w, int h){
+        position.x = x;
+        position.y = y;
+        position.w = w;
+        position.h = h;
+    }
+    void setSlice(int x, int y, int w, int h){
+        slice.x = x;
+        slice.y = y;
+        slice.w = w;
+        slice.h = h;
+    }
+};
 
 class Game {
     private:
@@ -22,11 +60,19 @@ class Game {
 
         map<int, bool> keyboard;
         vector<int> pressedKeys;
+        vector<Sprite*> sprites;
+
+        SDL_Renderer* getRenderer(){
+            return renderer;
+        }
 
         int getScreen_Width() const { return SCREEN_WIDTH;}
         int getScreen_Height() const { return SCREEN_HEIGHT;}
 
+
         int init(int width, int height, const char * name){
+            SCREEN_WIDTH = width;
+            SCREEN_HEIGHT = height;
             if( SDL_Init( SDL_INIT_VIDEO ) != 0 )
             {
                 printf( "SDL could not initialize! SDL_Error: %s\n", SDL_GetError() );
@@ -55,8 +101,6 @@ class Game {
                 return 4;
             }
             //set variables
-            SCREEN_WIDTH = width;
-            SCREEN_HEIGHT = height;
             running = true;
 
             return 0;
@@ -86,6 +130,30 @@ class Game {
                 }
             }
         }
+
+        Sprite * createSprite(int x, int y, int w, int h, int sx, int sy, int sw, int sh, SDL_Texture * txt){
+            sprites.push_back(new Sprite(x, y, w, h, sx, sy, sw, sh, txt));
+            return sprites.back();
+        }
+
+        void draw(){
+            //background
+            SDL_SetRenderDrawColor( renderer, 255, 255, 255, 255 );
+            SDL_RenderClear( renderer );
+
+            sort(sprites.begin(), sprites.end(), [ ]( const auto& lhs, const auto& rhs )
+            {
+                return lhs->priority() < rhs->priority();
+            });
+
+            //sprites
+            for(Sprite * s : sprites){
+                s->render(renderer);
+            }
+            //update screen
+            SDL_RenderPresent(renderer);
+        }
+
         void Quit(){
             running = false;
             SDL_DestroyWindow(window);
