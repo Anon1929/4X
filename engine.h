@@ -4,7 +4,8 @@
 #include <map>
 #include <vector>
 #include <algorithm>
-
+#define TILE_WIDTH 30
+#define TILE_HEIGHT 30
 using namespace std;
 
 class Sprite{
@@ -43,6 +44,120 @@ class Sprite{
         slice.h = h;
     }
 };
+bool colision(SDL_Rect a, SDL_Rect b){
+	if(a.y+a.h <= b.y)
+		return false;
+	if(a.y>= b.y+b.h)
+		return false;
+	if(a.x+a.w<= b.x)
+		return false;
+	if(a.x>= b.x+b.w)
+		return false;
+	return true;
+}
+class GameMap;
+class Camera{
+	private:
+		SDL_Rect coordinates;
+	public:
+		SDL_Rect GetCoordinates(){
+			return coordinates;
+		};
+		void Move(map <int, bool> keyboard, GameMap stage);
+		Camera(int x, int y, int w, int h){
+			coordinates.x = x;
+			coordinates.y = y;
+			coordinates.w = w;
+			coordinates.h = h;
+		}
+};
+
+class Tile{
+	private:
+		SDL_Rect coordinates;
+		int type;
+
+	public:
+			Tile(int x, int y, int t){
+			coordinates.x = x;
+			coordinates.y = y;
+			coordinates.w = TILE_WIDTH;
+			coordinates.h = TILE_HEIGHT;
+			type = t;
+		}
+		int GetType(){
+		return type;}
+		SDL_Rect GetCoordinates(){
+			return coordinates;
+		}
+		void Render(Camera cam, SDL_Renderer *render, vector<SDL_Texture*> texture){
+			SDL_Rect local = coordinates;
+			local.x -= cam.GetCoordinates().x;
+			local.y -= cam.GetCoordinates().y;
+			SDL_RenderCopy(render,texture[GetType()],NULL,&local);
+		}
+};
+class GameMap{
+	public:
+		vector<Tile> maptiles;   // é privado, mas para efeito de construção é público enquanto não houver editor
+		int MAP_WIDTH, MAP_HEIGHT;
+
+		Tile GetTile(int i){
+			return maptiles[i];
+		}
+		GameMap(int x, int y){
+			MAP_WIDTH = x;
+			MAP_HEIGHT = y;
+
+		}
+		int GetWidth(){
+		
+			return MAP_WIDTH;
+		}
+		int GetHeight(){
+			return MAP_HEIGHT;
+		}
+		vector<Tile> GetMapTiles(){
+			return maptiles;
+		}
+		int GetTileIndex(Camera cam, int mousex, int mousey){
+			int xcomponent = (mousex+cam.GetCoordinates().x)/TILE_WIDTH;
+			int ycomponent = (mousey+cam.GetCoordinates().y)/TILE_HEIGHT;
+			int index = ycomponent * (MAP_WIDTH/TILE_WIDTH) + xcomponent;
+			cout << index << endl;
+			return index;
+		}
+		void OldRenderTiles(Camera cam, SDL_Renderer* render, vector<SDL_Texture*> textures){
+			for (auto i = this->maptiles.begin();i!=this->maptiles.end();i++){
+			if (colision(i->GetCoordinates(),cam.GetCoordinates())){
+				i->Render(cam, render,textures);
+			}
+		}
+}
+
+};
+void Camera::Move(map <int, bool> keyboard, GameMap stage){
+			if (keyboard['i']==true){
+				coordinates.y-=10;
+				if (coordinates.y<0)
+					coordinates.y=0;
+			}
+			if (keyboard['k']==true){
+				coordinates.y+=10;
+				if (coordinates.y> stage.GetHeight()-coordinates.h)
+					coordinates.y=stage.GetHeight()-coordinates.h;
+			}
+			if (keyboard['j']==true){
+				coordinates.x-=10;
+				if (coordinates.x<0)
+					coordinates.x=0;
+			}
+			if (keyboard['l']==true){
+				coordinates.x+=10;
+				if (coordinates.x>stage.GetWidth()-coordinates.w)
+					coordinates.x=stage.GetWidth()-coordinates.w;
+			}
+		}
 
 class Game {
     private:
@@ -136,10 +251,12 @@ class Game {
             return sprites.back();
         }
 
-        void draw(){
+        void draw(GameMap map, Camera cam,vector<SDL_Texture*> textures ){
             //background
             SDL_SetRenderDrawColor( renderer, 255, 255, 255, 255 );
             SDL_RenderClear( renderer );
+			
+			map.OldRenderTiles(cam, renderer,textures);
 
             sort(sprites.begin(), sprites.end(), [ ]( const auto& lhs, const auto& rhs )
             {
