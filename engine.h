@@ -4,9 +4,59 @@
 #include <map>
 #include <vector>
 #include <algorithm>
+#include <utility>
 #define TILE_WIDTH 30
 #define TILE_HEIGHT 30
 using namespace std;
+
+class Camera{
+	private:
+		int x_;
+        int y_;
+        int w_;
+        int h_;
+        float ratio;
+        SDL_Renderer * renderer;
+	public:
+		SDL_Rect GetCoordinates(){
+			SDL_Rect coordinates;
+            coordinates.x = x_;
+            coordinates.y = y_;
+            coordinates.w = w_;
+            coordinates.h = h_;
+            return coordinates;
+		};
+        void setRatio(int r){
+            ratio = r;
+        }
+        void changeRatio(float a){
+            ratio = ratio*a;
+        }
+        float getRatio(){
+            return ratio;
+        }
+        void move(int x, int y){
+            x_ += x / ratio;
+            y_ += y / ratio;
+        }
+		void init(SDL_Renderer * rend, int x, int y, int w, int h, int r){
+			x_ = x;
+			y_ = y;
+			w_ = w;
+			h_ = h;
+            ratio = r;
+            renderer = rend;
+		}
+        void render(SDL_Texture* texture, SDL_Rect s, SDL_Rect p){
+            p.x = int((p.x - x_)*ratio);
+            p.y = int((p.y - y_)*ratio);
+            p.w = int(p.w *ratio);
+            p.h = int(p.h *ratio);
+            SDL_Rect position = p;
+            SDL_Rect slice = s;
+            SDL_RenderCopy(renderer, texture, &slice, &position);
+        }
+};
 
 class Sprite{
     private:
@@ -25,8 +75,8 @@ class Sprite{
         slice.h = sh;
         texture = txt;
     }
-    void render(SDL_Renderer * renderer){
-        SDL_RenderCopy(renderer, texture, &slice, &position);
+    void render(Camera camera){
+        camera.render(texture, slice, position);
     }
     int priority(){
         return position.y;
@@ -55,109 +105,78 @@ bool colision(SDL_Rect a, SDL_Rect b){
 		return false;
 	return true;
 }
-class GameMap;
-class Camera{
-	private:
-		SDL_Rect coordinates;
-	public:
-		SDL_Rect GetCoordinates(){
-			return coordinates;
-		};
-		void Move(map <int, bool> keyboard, GameMap stage);
-		Camera(int x, int y, int w, int h){
-			coordinates.x = x;
-			coordinates.y = y;
-			coordinates.w = w;
-			coordinates.h = h;
-		}
-};
 
 class Tile{
-	private:
-		SDL_Rect coordinates;
-		int type;
-
 	public:
-			Tile(int x, int y, int t){
-			coordinates.x = x;
-			coordinates.y = y;
-			coordinates.w = TILE_WIDTH;
-			coordinates.h = TILE_HEIGHT;
-			type = t;
-		}
-		int GetType(){
-		return type;}
-		SDL_Rect GetCoordinates(){
-			return coordinates;
-		}
-		void Render(Camera cam, SDL_Renderer *render, vector<SDL_Texture*> texture){
-			SDL_Rect local = coordinates;
-			local.x -= cam.GetCoordinates().x;
-			local.y -= cam.GetCoordinates().y;
-			SDL_RenderCopy(render,texture[GetType()],NULL,&local);
-		}
+        int type;
+        Tile(){
+            type=0;
+        }
 };
-class GameMap{
-	public:
-		vector<Tile> maptiles;   // é privado, mas para efeito de construção é público enquanto não houver editor
-		int MAP_WIDTH, MAP_HEIGHT;
 
-		Tile GetTile(int i){
-			return maptiles[i];
-		}
-		GameMap(int x, int y){
+class GameMap{
+    private:
+		int MAP_WIDTH = 0;
+        int MAP_HEIGHT = 0;
+        vector<Tile> tileMap;
+        SDL_Texture * texture;
+	public: 
+		void init(int x, int y, SDL_Texture * t){
 			MAP_WIDTH = x;
 			MAP_HEIGHT = y;
+            tileMap = vector<Tile>(x*y);
+            texture = t;
+		}
 
+        void renderTiles(Camera camera){
+            SDL_Rect pos = camera.GetCoordinates();
+            float ratio = camera.getRatio();
+            int sY = pos.y/TILE_HEIGHT;
+            int sX = pos.x/TILE_WIDTH;
+            int pY = pos.y+pos.h/ratio;
+            int eY = pY/TILE_WIDTH +1;
+            int pX = pos.x+pos.w/ratio;
+            int eX = pX/TILE_HEIGHT +1;
+            if(sX<0)sX=0;
+            if(sY<0)sY=0;
+            if(eX>MAP_WIDTH)eX=MAP_WIDTH;
+            if(eY>MAP_HEIGHT)eY=MAP_HEIGHT;
+
+            for(int j = sY; j < eY; j++){
+                for(int i = sX; i < eX; i++){
+                    SDL_Rect position;
+                    position.x = i * TILE_WIDTH;
+                    position.y = j * TILE_HEIGHT;
+                    position.w = TILE_WIDTH;
+                    position.h = TILE_HEIGHT;
+                    SDL_Rect slice;
+                    slice.w=16;
+                    slice.h=16;
+                    slice.x = 16*(tileMap[i + j*MAP_WIDTH].type%16);
+                    slice.y = 16*(tileMap[i + j*MAP_WIDTH].type/16);
+                    camera.render(texture, slice, position);
+                }
+            }
+        }
+
+		int GetTileIndex(Camera camera, int mousex, int mousey){
+            SDL_Rect pos = camera.GetCoordinates();
+            float ratio = camera.getRatio();
+            int sY = (pos.y+mousey/ratio)/TILE_HEIGHT;
+            int sX = (pos.x+mousex/ratio)/TILE_WIDTH;
+            cout << sX << " " << sY << endl;
+			return sY + sX*MAP_WIDTH;
 		}
-		int GetWidth(){
-		
-			return MAP_WIDTH;
+
+        void updateTile(Camera camera, int mousex, int mousey){
+            SDL_Rect pos = camera.GetCoordinates();
+            float ratio = camera.getRatio();
+            int sY = (pos.y+mousey/ratio)/TILE_HEIGHT;
+            int sX = (pos.x+mousex/ratio)/TILE_WIDTH;
+            tileMap[sX + sY*MAP_WIDTH].type = 1;
 		}
-		int GetHeight(){
-			return MAP_HEIGHT;
-		}
-		vector<Tile> GetMapTiles(){
-			return maptiles;
-		}
-		int GetTileIndex(Camera cam, int mousex, int mousey){
-			int xcomponent = (mousex+cam.GetCoordinates().x)/TILE_WIDTH;
-			int ycomponent = (mousey+cam.GetCoordinates().y)/TILE_HEIGHT;
-			int index = ycomponent * (MAP_WIDTH/TILE_WIDTH) + xcomponent;
-			cout << index << endl;
-			return index;
-		}
-		void OldRenderTiles(Camera cam, SDL_Renderer* render, vector<SDL_Texture*> textures){
-			for (auto i = this->maptiles.begin();i!=this->maptiles.end();i++){
-			if (colision(i->GetCoordinates(),cam.GetCoordinates())){
-				i->Render(cam, render,textures);
-			}
-		}
-}
 
 };
-void Camera::Move(map <int, bool> keyboard, GameMap stage){
-			if (keyboard['i']==true){
-				coordinates.y-=10;
-				if (coordinates.y<0)
-					coordinates.y=0;
-			}
-			if (keyboard['k']==true){
-				coordinates.y+=10;
-				if (coordinates.y> stage.GetHeight()-coordinates.h)
-					coordinates.y=stage.GetHeight()-coordinates.h;
-			}
-			if (keyboard['j']==true){
-				coordinates.x-=10;
-				if (coordinates.x<0)
-					coordinates.x=0;
-			}
-			if (keyboard['l']==true){
-				coordinates.x+=10;
-				if (coordinates.x>stage.GetWidth()-coordinates.w)
-					coordinates.x=stage.GetWidth()-coordinates.w;
-			}
-		}
 
 class Game {
     private:
@@ -174,12 +193,16 @@ class Game {
     public:
 
         map<int, bool> keyboard;
+        vector<pair<int, int>> mouseClicks;
         vector<int> pressedKeys;
         vector<Sprite*> sprites;
 
         SDL_Renderer* getRenderer(){
             return renderer;
         }
+
+        Camera camera;
+        GameMap gameMap;
 
         int getScreen_Width() const { return SCREEN_WIDTH;}
         int getScreen_Height() const { return SCREEN_HEIGHT;}
@@ -217,7 +240,6 @@ class Game {
             }
             //set variables
             running = true;
-
             return 0;
         }
 
@@ -242,6 +264,11 @@ class Game {
                 case SDL_KEYUP:
                     keyboard[key] = false;
                     break;
+                case SDL_MOUSEBUTTONDOWN:
+                        pair<int, int> click;
+                        SDL_GetMouseState(&click.first, &click.second);
+                        mouseClicks.push_back(click);
+                    break;
                 }
             }
         }
@@ -251,12 +278,12 @@ class Game {
             return sprites.back();
         }
 
-        void draw(GameMap map, Camera cam,vector<SDL_Texture*> textures ){
+        void draw( ){
             //background
             SDL_SetRenderDrawColor( renderer, 255, 255, 255, 255 );
             SDL_RenderClear( renderer );
 			
-			map.OldRenderTiles(cam, renderer,textures);
+			gameMap.renderTiles(camera);
 
             sort(sprites.begin(), sprites.end(), [ ]( const auto& lhs, const auto& rhs )
             {
@@ -265,7 +292,7 @@ class Game {
 
             //sprites
             for(Sprite * s : sprites){
-                s->render(renderer);
+                s->render(camera);
             }
             //update screen
             SDL_RenderPresent(renderer);
