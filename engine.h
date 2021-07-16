@@ -4,6 +4,7 @@
 #include <map>
 #include <vector>
 #include <algorithm>
+#include <fstream>
 #include <utility>
 #define TILE_WIDTH 30
 #define TILE_HEIGHT 30
@@ -106,11 +107,11 @@ bool colision(SDL_Rect a, SDL_Rect b){
 	return true;
 }
 
-class Tile{
+struct Tile{
 	public:
         int type;
-        Tile(){
-            type=0;
+        Tile(int t=0){
+            type=t;
         }
 };
 
@@ -121,11 +122,18 @@ class GameMap{
         vector<Tile> tileMap;
         SDL_Texture * texture;
 	public: 
-		void init(int x, int y, SDL_Texture * t){
+		void init(int x, int y, SDL_Texture * t,vector<Tile> v){
 			MAP_WIDTH = x;
 			MAP_HEIGHT = y;
-            tileMap = vector<Tile>(x*y);
+            //tileMap = vector<Tile>(x*y);
             texture = t;
+			tileMap = v;
+		}
+		void UpdateTileMap(vector<Tile> newtilemap){
+			tileMap = newtilemap;
+		}
+		Tile* GetTile(int i){
+			return &tileMap[i];
 		}
 
         void renderTiles(Camera camera){
@@ -164,19 +172,76 @@ class GameMap{
             float ratio = camera.getRatio();
             int sY = (pos.y+mousey/ratio)/TILE_HEIGHT;
             int sX = (pos.x+mousex/ratio)/TILE_WIDTH;
-            cout << sX << " " << sY << endl;
-			return sY + sX*MAP_WIDTH;
+			return sX + sY*MAP_WIDTH;
 		}
 
-        void updateTile(Camera camera, int mousex, int mousey){
-            SDL_Rect pos = camera.GetCoordinates();
-            float ratio = camera.getRatio();
-            int sY = (pos.y+mousey/ratio)/TILE_HEIGHT;
-            int sX = (pos.x+mousex/ratio)/TILE_WIDTH;
-            tileMap[sX + sY*MAP_WIDTH].type = 1;
+        void EditorUpdateTile(Camera camera, int mousex, int mousey){
+			int index = GetTileIndex(camera,mousex,mousey);
+            tileMap[index].type = (tileMap[index].type+1)%3;
 		}
 
 };
+
+vector<Tile> CreateOrLoadMap(int &x,int &y,string &filename){
+	vector<Tile> stage;
+	ifstream infile;
+	ofstream outfile;
+	cout <<"Enter map name:";
+	cin >> filename;
+	filename.append(".bin");
+	infile.open(filename, ios::in | ios::binary);
+	if (infile){
+		cout<<"Reading file"<<endl;
+		infile.read(reinterpret_cast<char*>(&x), sizeof(int));
+		infile.read(reinterpret_cast<char*>(&y), sizeof(int));
+		cout <<outfile.tellp()<< endl;
+		for( int i = 0; i <x*y; ++i ){
+			stage.emplace_back(Tile());
+			infile.read(reinterpret_cast<char*>(&stage[i]),sizeof(Tile));
+		}
+		infile.close();
+	}
+	else{
+		cout<< "No file opened, creating a new file" << endl;
+		outfile.open(filename, ios::out | ios::binary);
+		if (outfile){
+			cout<<"New file created" <<endl;
+			cout<<"Input Horizontal Number of Tiles:";
+			cin >> x;
+			cout<<"Input Vertical Number of Tiles:";
+			cin >> y;
+			outfile.write(reinterpret_cast<char*>(&x), sizeof(int));
+			outfile.write(reinterpret_cast<char*>(&y), sizeof(int));
+			for (int i =0;i<x*y; ++i){
+				stage.emplace_back(Tile());
+				outfile.write(reinterpret_cast<char*>(&stage[i]), sizeof(Tile));
+
+			}
+			outfile.close();
+		}
+		else{
+			cout << "Unable to create file"<<endl;
+		}
+	}
+	return stage;
+}
+void SaveMap(int x, int y, string filename, GameMap map){
+	ofstream outfile;
+	outfile.open(filename, ios::out | ios::binary);
+	if (outfile){
+		outfile.write(reinterpret_cast<char*>(&x), sizeof(int));
+		outfile.write(reinterpret_cast<char*>(&y), sizeof(int));
+		for( int i = 0; i < x*y; ++i ){
+			outfile.write(reinterpret_cast<char*>(map.GetTile(i)),sizeof(Tile));
+		}
+				outfile.close();
+				cout << "Save Complete" << endl;
+			}
+			else{
+				cout << "Unable to save map" <<endl;
+			}
+
+}
 
 class Game {
     private:
@@ -306,3 +371,4 @@ class Game {
             SDL_Quit();
         }
 };
+
