@@ -2,6 +2,19 @@
 
 using namespace std;
 
+class Npc{
+    public:
+    GameObject * gameObject;
+    Game * game;
+    Npc(Game * game_, GameObject * gameObject_){
+        gameObject = gameObject_;
+        game = game_;
+    }
+    void update(){
+        gameObject->translate(rand()%10 -5, rand()%10 -5);
+    }
+};
+
 int main(){
     Game game;
     game.init(600, 600, "bicicleta");
@@ -11,11 +24,13 @@ int main(){
 
     game.camera.init(game.getRenderer(), 0, 0, game.getScreen_Width(), game.getScreen_Height(), 2);
     game.gameMap.init(100, 100, tileTexture);
+    Npc npc(&game, game.createGameObject(300, 300, 128, 128, 0, 0, 32, 32, characterTexture));
 
-    game.createSprite(40, 40, 128, 128, 0, 0, 32, 32, characterTexture );
     while(game.update(20)){
         game.getEvents();
         game.draw();
+
+        npc.update();
 
         while(game.pressedKeys.size()>0){
             int key = game.pressedKeys.back();
