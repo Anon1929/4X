@@ -82,9 +82,11 @@ class Sprite{
     int priority(){
         return position.y;
     }
-    void setPosition(int x, int y, int w, int h){
+    void setPosition(int x, int y){
         position.x = x;
         position.y = y;
+    }
+    void setSlice(int w, int h){
         position.w = w;
         position.h = h;
     }
@@ -95,6 +97,43 @@ class Sprite{
         slice.h = h;
     }
 };
+
+typedef struct Rect{
+    float x;
+    float y;
+    float w;
+    float h;
+}Rect;
+
+class GameObject{
+    protected:
+    Rect rect;
+    Sprite * sprite = nullptr;
+    public:
+    GameObject(float x, float y, float w, float h){
+        rect.x = x;
+        rect.y = y;
+        rect.w = w;
+        rect.h = h;
+    }
+    SDL_Rect getRect(){
+        SDL_Rect r;
+        r.x = rect.x;
+        r.y = rect.y;
+        r.w = rect.w;
+        r.h = rect.h;
+        return r;
+    }
+    void setSprite(Sprite * sp){
+        sprite = sp;
+    }
+    void translate(float x, float y){
+        rect.x += x;
+        rect.y += y;
+        sprite->setPosition(int(rect.x), int(rect.y));
+    }
+};
+
 bool colision(SDL_Rect a, SDL_Rect b){
 	if(a.y+a.h <= b.y)
 		return false;
@@ -261,6 +300,7 @@ class Game {
         vector<pair<int, int>> mouseClicks;
         vector<int> pressedKeys;
         vector<Sprite*> sprites;
+        vector<GameObject*> gameObjects;
 
         SDL_Renderer* getRenderer(){
             return renderer;
@@ -341,6 +381,12 @@ class Game {
         Sprite * createSprite(int x, int y, int w, int h, int sx, int sy, int sw, int sh, SDL_Texture * txt){
             sprites.push_back(new Sprite(x, y, w, h, sx, sy, sw, sh, txt));
             return sprites.back();
+        }
+        GameObject * createGameObject(int x, int y, int w, int h, int sx, int sy, int sw, int sh, SDL_Texture * txt){
+            sprites.push_back(new Sprite(x, y, w, h, sx, sy, sw, sh, txt));
+            gameObjects.push_back(new GameObject(x, y, w, h));
+            gameObjects.back()->setSprite(sprites.back());
+            return gameObjects.back();
         }
 
         void draw( ){
