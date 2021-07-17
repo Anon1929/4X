@@ -5,6 +5,7 @@ int main(){
     Game game;
     game.init(600, 600, "bicicleta");
     SDL_Texture * tileTexture =IMG_LoadTexture(game.getRenderer(), "./tiles.png");
+	game.textwrapper.CreateFontAtlas(game.getRenderer(),"sans.ttf");
 
 
 	int x,y;
@@ -13,6 +14,7 @@ int main(){
     game.gameMap.init(x, y, tileTexture,CreateOrLoadMap(x,y,filename ));
     while(game.update(20)){
         game.getEvents();
+		game.textwrapper.QueueText("teste",0,50,50,50,50,80,40,80);
         game.draw();
 
         while(game.pressedKeys.size()>0){
