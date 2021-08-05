@@ -1,8 +1,10 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#include <SDL2/SDL_ttf.h>
 #include <iostream>
 #include <map>
 #include <vector>
+#include <queue>
 #include <algorithm>
 #include <fstream>
 #include <utility>
@@ -133,6 +135,87 @@ class GameObject{
         sprite->setPosition(int(rect.x), int(rect.y));
     }
 };
+class TextWrapper{
+	private:
+		vector <pair<SDL_Texture*,map<int,SDL_Rect>>> fonts;
+		queue<tuple<char *,SDL_Rect,SDL_Color,int>> textqueue;
+	
+	public:
+		void CreateFontAtlas(SDL_Renderer *render,string filename){
+			TTF_Font * newfont;
+			SDL_Color color = {255,255,255};
+			map <int,SDL_Rect> AtlasSlice;
+			char letter[2];
+			newfont = TTF_OpenFont(filename.c_str(), 50);
+			SDL_Surface *surface, *text;
+			surface = SDL_CreateRGBSurface(0, 500, 500, 32, 0, 0, 0, 0xff);
+			SDL_SetColorKey(surface, SDL_TRUE, SDL_MapRGBA(surface->format, 0, 0, 0, 0));
+			SDL_Rect dest;
+			dest.x = dest.y = 0;
+			int i;
+			for (i = ' '; i <='z';i++){
+				letter[0] = i;
+				letter[1] = 0;
+				text = TTF_RenderText_Blended(newfont,letter,color);
+				TTF_SizeText(newfont,letter ,&dest.w, &dest.h);
+				if (dest.x+dest.w >= 500){
+					dest.x = 0;
+					dest.y += dest.h + 1;
+				}
+				SDL_BlitSurface(text, NULL, surface, &dest);
+				AtlasSlice[i].x= dest.x;
+				AtlasSlice[i].y= dest.y;
+				AtlasSlice[i].w= dest.w;
+				AtlasSlice[i].h= dest.h;
+				SDL_FreeSurface(text);
+				dest.x+=dest.w;
+			}
+			TTF_CloseFont(newfont);
+			SDL_Texture * AtlasTexture = SDL_CreateTextureFromSurface(render, surface);
+			pair<SDL_Texture*,map<int,SDL_Rect>> createdfont = {AtlasTexture,AtlasSlice};
+			fonts.emplace_back(createdfont);
+		}
+		void QueueText(char const *text,int font, int x, int y,int w, int h, unsigned char  r, unsigned char g, unsigned char  b){
+			char * t = (char*)text;
+			SDL_Rect pos = {x,y,w,h};
+			SDL_Color color = {r,g,b};
+			tuple <char *,SDL_Rect,SDL_Color,int> newtext(t,pos,color,font);
+			textqueue.push(newtext);
+		}
+		void DrawText(SDL_Renderer* render){
+			while(!textqueue.empty()){
+				auto text = textqueue.front();
+				int i, character;
+				char * word = get<0>(text);
+				SDL_Rect pos = get<1>(text);
+				SDL_Color color = get<2>(text);
+				int fontselect = get<3>(text);
+				SDL_Rect *slice, dest;
+				if(fonts.size()==0){
+					cout << "No FontAtlas loaded" <<endl;
+				}
+				else{
+					fontselect = fontselect%fonts.size();
+					SDL_SetTextureColorMod(fonts[fontselect].first,color.r,color.g,color.b);
+					i = 0;
+					character = word[i++];
+					while (character){
+						slice = &fonts[fontselect].second[character];
+						
+						dest.x = pos.x;
+						dest.y = pos.y;
+						dest.w = pos.w;  // slice->w/h for size in font texture
+						dest.h = pos.w;
+						SDL_RenderCopy(render,fonts[fontselect].first , slice, &dest);
+						pos.x += pos.w;
+						character = word[i++];
+					}
+				}
+				textqueue.pop();
+			}
+		}
+};
+
 
 bool colision(SDL_Rect a, SDL_Rect b){
 	if(a.y+a.h <= b.y)
@@ -308,6 +391,7 @@ class Game {
 
         Camera camera;
         GameMap gameMap;
+		TextWrapper textwrapper;
 
         int getScreen_Width() const { return SCREEN_WIDTH;}
         int getScreen_Height() const { return SCREEN_HEIGHT;}
@@ -343,6 +427,12 @@ class Game {
                 printf("Could not initialize images! %s\n", SDL_GetError());
                 return 4;
             }
+			if (TTF_Init() <0){
+                printf("Could not initialize fonts! %s\n", SDL_GetError());
+				return 5;
+			}
+
+
             //set variables
             running = true;
             return 0;
@@ -405,6 +495,8 @@ class Game {
             for(Sprite * s : sprites){
                 s->render(camera);
             }
+			textwrapper.DrawText(renderer);
+
             //update screen
             SDL_RenderPresent(renderer);
         }
